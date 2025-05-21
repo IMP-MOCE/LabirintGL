@@ -65,6 +65,14 @@ public:
         GenerateNewSleepTrigger();
     }
 
+    void Reset() {
+        activatedFires = 0;
+        sleepState = AWAKE;
+        sleepTimer = 0.0f;
+        sleepCooldown = 0.0f;
+        GenerateNewSleepTrigger();
+    }
+
 private:
     float sleepTimer;
     float sleepCooldown;

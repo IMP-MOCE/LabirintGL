@@ -15,6 +15,7 @@
 #include "flashlight.h"
 #include "AABB.h"
 #include "Player.h"
+#include "Menu.h"
 
 #include <iostream>
 #include <vector>
@@ -68,8 +69,8 @@ bool IsNearLight(const glm::vec3& cameraPos, const glm::vec3& lightPos, float th
 }
 
 
-const unsigned int SCR_WIDTH = 2560;
-const unsigned int SCR_HEIGHT = 1440;
+const unsigned int SCR_WIDTH = 1920;
+const unsigned int SCR_HEIGHT = 1200;
 
 Camera camera(glm::vec3(-546.0f, 7.0f, 628.0f));
 float lastX = SCR_WIDTH / 2.0f;
@@ -120,6 +121,7 @@ int main()
 
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
+    
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
@@ -127,6 +129,52 @@ int main()
         return -1;
     }
 
+    Menu menu(window);
+    menu.AddButton("Restart", glm::vec2(SCR_WIDTH / 2 - 100, SCR_HEIGHT / 2 - 50), glm::vec2(200, 50), [&]() {
+        // ѕерезапуск игры
+        camera.SetPosition(glm::vec3(-546.0f, 7.0f, 628.0f));
+        flashlight.BatteryLevel = 100.0f;
+
+        for (int i = 0; i < 5; i++) {
+            if (pointLights[i].isOn) {
+                pointLights[i].isOn = false;
+                pointLights[i].diffuse = glm::vec3(0.0f);
+                pointLights[i].ambient = glm::vec3(0.0f);
+                pointLights[i].specular = glm::vec3(0.0f);
+
+                soundManager.stopAllFireSounds();
+            }
+        }
+
+        for (auto& battery : batteries) {
+            battery.isActive = true;
+            // ¬осстанавливаем матрицы отрисовки если они были удалены
+            if (battery.matrices.empty()) {
+                glm::mat4 model = glm::mat4(1.0f);
+                model = glm::translate(model, battery.position);
+                model = glm::scale(model, glm::vec3(7.0f));
+                battery.matrices.push_back(model);
+
+                model = glm::mat4(1.0f);
+                model = glm::translate(model, battery.position + glm::vec3(0.2f, 0.0f, -0.2f));
+                model = glm::scale(model, glm::vec3(7.0f));
+                battery.matrices.push_back(model);
+
+                model = glm::mat4(1.0f);
+                model = glm::translate(model, battery.position + glm::vec3(-0.2f, 0.0f, 0.2f));
+                model = glm::scale(model, glm::vec3(7.0f));
+                battery.matrices.push_back(model);
+            }
+        }
+
+        player.Reset();
+
+        menu.Toggle();
+        });
+
+    menu.AddButton("Exit", glm::vec2(SCR_WIDTH / 2 - 100, SCR_HEIGHT / 2 + 50), glm::vec2(200, 50), [&]() {
+        glfwSetWindowShouldClose(window, true);
+        });
 
     glEnable(GL_MULTISAMPLE);
     glEnable(GL_DEPTH_TEST);
@@ -422,6 +470,24 @@ int main()
         processInput(window, allAABB);
         camera.UpdatePhysics(deltaTime, soundManager);
 
+        static bool escPressedLastFrame = false;
+
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS && !escPressedLastFrame) {
+            menu.Toggle();
+            escPressedLastFrame = true;
+        }
+        else if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_RELEASE) {
+            escPressedLastFrame = false;
+        }
+
+        if (menu.IsActive()) {
+            menu.ProcessInput();
+            menu.Render();
+            glfwSwapBuffers(window);
+            glfwPollEvents();
+            continue;
+        }
+
         bool eKeyPressedLastFrame = false;
         const float LIGHT_ACTIVATION_DISTANCE = 9.0f;
         const float LIGHT_ACTIVATION_ANGLE = 15.0f;
@@ -688,8 +754,14 @@ int main()
 
 void processInput(GLFWwindow* window, std::vector<AABB>& meshesAABB)
 {
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
+    static bool escPressedLastFrame = false;
+    bool escPressedNow = glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS;
+
+    if (escPressedNow && !escPressedLastFrame) {
+        escPressedLastFrame = true;
+        return;
+    }
+    escPressedLastFrame = escPressedNow;
 
     if (!camera.neckAnimation.isActive) {
         camera.ProcessKeyboard(FORWARD, glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS);
